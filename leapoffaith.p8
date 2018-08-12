@@ -4,88 +4,113 @@ __lua__
 function _init()
 	player = {}
 		player.x = 20
-		player.y = 50
+		player.y = 70
 		player.x_speed = 0
 		player.y_speed = 0
 		player.x_velocity = 0
 		player.y_velocity = 0
-		player.motion = true
-		player.aligned = false
 		player.sprite = 1
 		player.sprite_max = 7
 		player.sprite_min = 4
+    player.aligned = 20
+    player.floored = false
 	counter = 0
 	screen = {}
-		screen.x = 128
-		screen.y = 128
+		screen.x = 127
+		screen.y = 127
 	floor = {}
 		floor.y = 90
-	aligned = 25
 	z = {}
 		z.frame = 0
-		z.speed = 0
+		z.speed = -4
 		z.decay = 0
 	x = {}
 		x.frame = 0
+  result = false
+ orbs = {}
+ score = 0
 end
 
-function _update ()
-	if btn(4) then
+// controls/gameplay
+
+function _update()
+ result = jump_player(btn(4))
+ move_player()
+ gravity_player()
+ create_orbs()
+ move_orbs()
+ collide_orbs_player()
+ shrink_screen()
+end
+
+function shrink_screen()
+	if counter % 10 == 4 then
+	 screen.x -= 1
+	 score += 1
+	end
+end
+
+function create_orbs()
+	// orbs contents
+	// 1 sprite
+	// 2 sprite_min
+	// 3 sprite_max
+	// 4 x
+	// 5 y
+	if counter % 60 == 0 then
+		add(orbs, {16, 16, 23, screen.x, rnd(40)+42})
+	end
+end
+
+function move_orbs()
+	for orb in all(orbs) do
+		if orb[4] < 0 then
+			del(orbs, orb)
+		else
+			orb[4] -= 1
+		end
+	end
+end
+
+function collide_orbs_player()
+	local hitbox = {player.x, player.y, player.x+8, player.y+8}
+	for orb in all(orbs) do
+		local hitorb = {orb[4], orb[5], orb[4]+8, orb[5]+8}
+		if collision(hitbox, hitorb) then
+			del(orbs, orb)
+			score += 10
+		 if screen.x > 98 then
+		 	screen.x = 127
+		 else
+		 	screen.x += 30
+		 end
+		end
+	end
+end
+
+function jump_player(jump)
+  if jump and player.floored then
 		z.frame += 1
-		if (player.y_velocity > decay) then
+		if (z.speed < decay) then
 			player.y_velocity = decay
 			player.y_speed = decay
-		elseif player.y_speed == 0 then
-			player.y_velocity -= z.speed
-			if z.speed > 0 then
-				z.speed += 1
-			end
-		 decay += 1
+      decay -= 1
 		end
-	end
-	if not btn(4) then
+    return true
+  elseif jump and not player.floored then
+    z.frame += 1
+    return true
+	elseif not jump then
 		z.frame = 0
-		z.speed = 11
 		decay = 0
+    return false
 	end
 end
 
-
-
-function _draw()
-	counter += 1
-	cls()
-	draw_player()
-	draw_floor()
-	draw_background()
-	draw_debug()
-end
-
-function draw_debug()
-	print (player.y_velocity)
-	print (player.y_speed)
-	print (player.y)
-	print (z.frame)
-end
-
-function draw_player()
-
-	// figure out the players frame
-	if player.motion and counter % 5 == 0 then
-		player.sprite += 1
-		if player.sprite > player.sprite_max then
-			player.sprite = player.sprite_min
-		end
-	end
-	
-	// gravity
-	if player.y < floor.y-8 then
-		player.y_velocity += 1
-	end
-	
+function move_player()		
 	// align player with 'middle'
-	if player.y == floor.y-8 and player.x != aligned then
-		if player.x > aligned then
+	if player.y == floor.y-8 and player.x != player.aligned then
+		if player.x > player.aligned then
 			player.x_speed = -1
 		else
 			player.x_speed = 1
@@ -96,13 +121,51 @@ function draw_player()
 	
 	// move player
 	player.y_speed += player.y_velocity/50
-	
 	player.y += player.y_speed
-	player.x += player.x_speed
+  player.x += player.x_speed
 	
-	//  ensure player is at floor
+	// ensure player cannot go lower than floor at floor
 	if player.y > floor.y-8 then
-		player.y = floor.y-8
+  	player.y = floor.y-8
+	end
+	
+end
+
+function gravity_player()
+  // gravity
+	if player.y < floor.y-8 then
+		player.y_velocity += 1.2
+    player.floored = false
+  else
+    player.y_velocity = 0
+    player.y_speed = 0
+    player.floored = true
+	end
+end
+
+// visuals
+
+function _draw()
+	counter += 1
+	cls()
+	draw_player()
+	draw_floor()
+	draw_orbs()
+	draw_debug()
+end
+
+function draw_debug()
+	print(score)
+end
+
+function draw_player()
+
+	// figure out the players frame
+	if counter % 5 == 0 and player.floored then
+		player.sprite += 1
+		if player.sprite > player.sprite_max then
+			player.sprite = player.sprite_min
+		end
 	end
 	
 		// literally draw the player
@@ -114,7 +177,31 @@ function draw_floor()
 	line(0, floor.y, screen.x, floor.y)
 end
 
-function draw_background()
+function draw_orbs()
+	for orb in all(orbs) do
+		spr(orb[1], orb[4], orb[5])
+		if counter % 5 == 2 then
+			orb[1] += 1
+		end
+		if orb[1] > orb[3] then
+			orb[1] = orb[2]
+		end
+	end
+end
+
+// utility
+
+function collision(a, b)
+	c = {(a[3]-a[1])/2+a[1], (a[4]-a[2])/2+a[2]}
+	if c[1] > b[1] and c[1] < b[3] then
+	 if c[2] > b[2] and c[2] < b[4] then
+	  return true
+	 else
+	  return false
+	 end
+	else
+		return false
+	end
 end
 __gfx__
 00000000000550000000550000055000005500000005500000005500000550000000000000000000000000000000000000000000000000000000000000000000
@@ -125,6 +212,13 @@ __gfx__
 00700700000660000006600007666000000666700006600007666000000660000000000000000000000000000000000000000000000000000000000000000000
 00000000000660000760600007000670000600000760067007006000076006700000000000000000000000000000000000000000000000000000000000000000
 00000000000777000070770000000700000770000070070000007700007007000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000770000660066000000000000000000006600007700770000000000000000000000000000000000000000000000000000000000000000000000000
+00600600006776000667766000666600007007000076670007766770007777000000000000000000000000000000000000000000000000000000000000000000
+00077000077007700070070000666600000660000660066000600600007777000000000000000000000000000000000000000000000000000000000000000000
+00077000077007700070070000666600000660000660066000600600007777000000000000000000000000000000000000000000000000000000000000000000
+00600600006776000667766000666600007007000076670007766770007777000000000000000000000000000000000000000000000000000000000000000000
+00000000000770000660066000000000000000000006600007700770000000000000000000000000000000000000000000000000000000000000000000000000
 __label__
 88888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888
 88888eeeeee888888888888888888888888888888888888888888888888888888888888888888888888ff8ff8888228822888222822888888822888888228888
