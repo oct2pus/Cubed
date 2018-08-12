@@ -3,14 +3,13 @@ version 16
 __lua__
 function _init()
 	player = {}
-		player.x = 0
-		player.y = 0
+		player.x = 20
+		player.y = 50
 		player.x_speed = 0
 		player.y_speed = 0
 		player.x_velocity = 0
 		player.y_velocity = 0
 		player.motion = true
-		player.floor = false
 		player.aligned = false
 		player.sprite = 1
 		player.sprite_max = 7
@@ -21,11 +20,34 @@ function _init()
 		screen.y = 128
 	floor = {}
 		floor.y = 90
-		
 	aligned = 25
+	z = {}
+		z.frame = 0
+		z.speed = 0
+		z.decay = 0
+	x = {}
+		x.frame = 0
 end
 
 function _update ()
+	if btn(4) then
+		z.frame += 1
+		if (player.y_velocity > decay) then
+			player.y_velocity = decay
+			player.y_speed = decay
+		elseif player.y_speed == 0 then
+			player.y_velocity -= z.speed
+			if z.speed > 0 then
+				z.speed += 1
+			end
+		 decay += 1
+		end
+	end
+	if not btn(4) then
+		z.frame = 0
+		z.speed = 11
+		decay = 0
+	end
 end
 
 
@@ -36,6 +58,14 @@ function _draw()
 	draw_player()
 	draw_floor()
 	draw_background()
+	draw_debug()
+end
+
+function draw_debug()
+	print (player.y_velocity)
+	print (player.y_speed)
+	print (player.y)
+	print (z.frame)
 end
 
 function draw_player()
@@ -49,32 +79,31 @@ function draw_player()
 	end
 	
 	// gravity
-	if player.y < floor.y-8 and counter % 2 == 0 then
+	if player.y < floor.y-8 then
 		player.y_velocity += 1
-	else 
-		player.y_velocity = 0
-		player.y_speed = 0
-		player.floor = true
 	end
 	
 	// align player with 'middle'
-	if player.floor == true then
-		if player.x != aligned then
-			if player.x > aligned then
-				player.x_speed = -1
-			else
-		 	player.x_speed = 1
-			end	
+	if player.y == floor.y-8 and player.x != aligned then
+		if player.x > aligned then
+			player.x_speed = -1
 		else
-			player.x_speed = 0
-			player.aligned = true	
+			player.x_speed = 1
 		end
+	else
+		player.x_speed = 0
 	end
 	
 	// move player
-	player.y_speed += player.y_velocity
+	player.y_speed += player.y_velocity/50
+	
 	player.y += player.y_speed
 	player.x += player.x_speed
+	
+	//  ensure player is at floor
+	if player.y > floor.y-8 then
+		player.y = floor.y-8
+	end
 	
 		// literally draw the player
 	spr(player.sprite, player.x, player.y)
